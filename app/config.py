@@ -40,7 +40,7 @@ def get_connection_string() -> str:
             url = url.replace("@/", f"@{host}/", 1)
         if "@:" in url:
             url = url.replace("@:", f"@{host}:", 1)
-        if ":/" in url:
-            url = url.replace(":/", f":{POSTGRES_PORT}/", 1)
+        if f"@{host}:/" in url:
+            url = url.replace(f"@{host}:/", f"@{host}:{POSTGRES_PORT}/", 1)
         return url
     return f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{host}:{POSTGRES_PORT}/{POSTGRES_DB}"
