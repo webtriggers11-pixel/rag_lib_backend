@@ -32,4 +32,7 @@ JWT_ALGORITHM: str = os.getenv("JWT_ALGORITHM", "HS256")
 JWT_EXPIRE_MINUTES: int = max(1, int(os.getenv("JWT_EXPIRE_MINUTES", "60")))
 
 def get_connection_string() -> str:
+    url = os.getenv("DATABASE_URL", "").strip()
+    if url:
+        return url.replace("postgres://", "postgresql://", 1) if url.startswith("postgres://") else url
     return f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
