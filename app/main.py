@@ -119,7 +119,15 @@ def ensure_db():
         conn = psycopg2.connect(get_connection_string())
         conn.autocommit = True
         with conn.cursor() as cur:
-            cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+            try:
+                cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+            except psycopg2.errors.FeatureNotSupported as e:
+                if "vector" in str(e).lower():
+                    raise RuntimeError(
+                        "PostgreSQL 'vector' (pgvector) extension is not available. "
+                        "On Railway use 'Postgres with pgVector Engine' (https://railway.com/deploy/postgres-with-pgvector-engine), not the default PostgreSQL."
+                    ) from e
+                raise
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS orgs (
                     id UUID PRIMARY KEY,

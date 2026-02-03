@@ -137,6 +137,7 @@ The default prompt is strict: answers only from context, refuses off-topic/inapp
 
 ## Production
 
+- **Railway:** Use **Postgres with pgVector Engine** for the database (https://railway.com/deploy/postgres-with-pgvector-engine). The default Railway PostgreSQL does not include the pgvector extension; the app requires it for RAG.
 - **JWT_SECRET:** With `DEBUG=0`, the app will not start unless `JWT_SECRET` is set to a secure random value (not `change-me-in-production`). Use e.g. `openssl rand -hex 32` and set it in `.env`.
 - **Health:** `GET /health` returns `status`, `database`, `gemini_configured`. Use for load balancers and readiness probes.
 - **Limits:** PDF upload max size (default 50 MB, `MAX_UPLOAD_SIZE_MB`), question max length (default 2000, `QUESTION_MAX_LENGTH`), org name max length (default 255, `ORG_NAME_MAX_LENGTH`). Enforced with 413/400.
