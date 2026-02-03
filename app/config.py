@@ -11,7 +11,7 @@ max_tokens_env = os.getenv("GEMINI_MAX_TOKENS", "").strip()
 GEMINI_MAX_TOKENS: Optional[int] = int(max_tokens_env) if max_tokens_env else None
 GOOGLE_API_KEY: str = os.getenv("GOOGLE_API_KEY", "")
 
-POSTGRES_HOST: str = os.getenv("POSTGRES_HOST", "localhost")
+POSTGRES_HOST: str = (os.getenv("POSTGRES_HOST", "localhost") or "localhost").strip() or "localhost"
 POSTGRES_PORT: int = int(os.getenv("POSTGRES_PORT", "5433"))
 POSTGRES_USER: str = os.getenv("POSTGRES_USER", "rag")
 POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD", "ragpass")
@@ -33,6 +33,14 @@ JWT_EXPIRE_MINUTES: int = max(1, int(os.getenv("JWT_EXPIRE_MINUTES", "60")))
 
 def get_connection_string() -> str:
     url = os.getenv("DATABASE_URL", "").strip()
+    host = POSTGRES_HOST
     if url:
-        return url.replace("postgres://", "postgresql://", 1) if url.startswith("postgres://") else url
-    return f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
+        url = url.replace("postgres://", "postgresql://", 1) if url.startswith("postgres://") else url
+        if "@/" in url:
+            url = url.replace("@/", f"@{host}/", 1)
+        if "@:" in url:
+            url = url.replace("@:", f"@{host}:", 1)
+        if ":/" in url:
+            url = url.replace(":/", f":{POSTGRES_PORT}/", 1)
+        return url
+    return f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{host}:{POSTGRES_PORT}/{POSTGRES_DB}"
