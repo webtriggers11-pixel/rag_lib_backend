@@ -195,11 +195,18 @@ async def _ensure_db_async():
 @app.on_event("startup")
 async def startup():
     await _ensure_db_async()
+    await get_pool()
 
 
 @app.on_event("shutdown")
 async def shutdown():
     await close_pool()
+
+
+@app.get("/ping")
+async def ping():
+    """No DB, no deps. Use this to confirm the app receives requests."""
+    return {"ping": "pong"}
 
 
 @app.get("/")
