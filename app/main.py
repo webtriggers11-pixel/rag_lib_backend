@@ -110,17 +110,13 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
-_db_init_done = False
-_db_init_lock = asyncio.Lock()
-
-
 async def _ensure_db_async():
     if not DEBUG and (not JWT_SECRET or JWT_SECRET == "change-me-in-production"):
         raise RuntimeError(
             "JWT_SECRET must be set to a secure random value in production (DEBUG=0). "
             "Use e.g. openssl rand -hex 32 and set JWT_SECRET in .env."
         )
-    conn = await asyncpg.connect(get_connection_string())
+    conn = await asyncpg.connect(get_connection_string(), timeout=25)
     try:
         try:
             await conn.execute("CREATE EXTENSION IF NOT EXISTS vector;")
@@ -198,23 +194,12 @@ async def _ensure_db_async():
 
 @app.on_event("startup")
 async def startup():
-    pass
+    await _ensure_db_async()
 
 
 @app.on_event("shutdown")
 async def shutdown():
     await close_pool()
-
-
-@app.middleware("http")
-async def lazy_db_init(request: Request, call_next):
-    global _db_init_done
-    if not _db_init_done:
-        async with _db_init_lock:
-            if not _db_init_done:
-                await _ensure_db_async()
-                _db_init_done = True
-    return await call_next(request)
 
 
 @app.get("/")
