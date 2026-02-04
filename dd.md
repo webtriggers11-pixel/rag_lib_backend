@@ -30,3 +30,7 @@ curl -X POST http://localhost:8000/orgs/ORG_ID/rag/query -H "Content-Type: appli
 
   python scripts/clear_db.py
   cd /Users/nishanttanajishedage/Desktop/agents_python/rag_lib && python scripts/clear_db.py
+
+
+
+  postgres://postgres:TFd2ynz-3b3otRBM0ATxoQ1wVlXkxl9N@hopper.proxy.rlwy.net:59240/railway
