@@ -34,3 +34,7 @@ curl -X POST http://localhost:8000/orgs/ORG_ID/rag/query -H "Content-Type: appli
 
 
   postgres://postgres:TFd2ynz-3b3otRBM0ATxoQ1wVlXkxl9N@hopper.proxy.rlwy.net:59240/railway
+
+
+
+  npm install github:YOUR_USERNAME/YOUR_REPO
