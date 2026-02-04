@@ -11,7 +11,6 @@ from fastapi.responses import JSONResponse
 from logging.handlers import RotatingFileHandler
 
 from app.config import (
-    CORS_ORIGINS,
     DEBUG,
     GOOGLE_API_KEY,
     JWT_SECRET,
@@ -108,6 +107,21 @@ async def global_exception_handler(request: Request, exc: Exception):
         status_code=500,
         content={"detail": str(exc) if DEBUG else "Internal server error"},
     )
+
+
+async def _exception_group_handler(request: Request, exc: BaseException):
+    for i, e in enumerate(getattr(exc, "exceptions", (exc,))):
+        logger.exception("ExceptionGroup sub-exception #%s: %s", i, e, exc_info=e)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+    )
+
+
+try:
+    app.add_exception_handler(ExceptionGroup, _exception_group_handler)
+except NameError:
+    pass
 
 
 async def _ensure_db_async():

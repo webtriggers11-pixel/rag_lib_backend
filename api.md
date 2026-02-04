@@ -6,6 +6,18 @@ Base URL: `http://localhost:8000`
 
 ## Root & Health
 
+### GET /ping
+
+No DB, no deps. Use to confirm the app receives requests (e.g. health checks).
+
+```bash
+curl http://localhost:8000/ping
+```
+
+**Response (200):** `{ "ping": "pong" }`
+
+---
+
 ### GET /
 
 Root info.
@@ -120,6 +132,36 @@ Get org detail and its uploads.
 curl http://localhost:8000/admin/orgs/ORG_UUID \
   -H "Authorization: Bearer YOUR_ADMIN_TOKEN"
 ```
+
+---
+
+### GET /admin/prompt
+
+Get default RAG prompt.
+
+```bash
+curl http://localhost:8000/admin/prompt \
+  -H "Authorization: Bearer YOUR_ADMIN_TOKEN"
+```
+
+**Response (200):** `{ "content": "string" }`
+
+---
+
+### PUT /admin/orgs/{org_id}/prompt
+
+Set custom prompt for an org.
+
+**Body:** `{ "content": "string" | null }` (null clears custom prompt)
+
+```bash
+curl -X PUT http://localhost:8000/admin/orgs/ORG_UUID/prompt \
+  -H "Authorization: Bearer YOUR_ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"content": "You are a helpful assistant."}'
+```
+
+**Response (200):** `{ "ok": true }`
 
 ---
 
@@ -299,6 +341,7 @@ curl http://localhost:8000/org/api-keys \
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
+| GET | /ping | — | Ping (no DB) |
 | GET | / | — | Root |
 | GET | /health | — | Health check |
 | POST | /auth/register | — | Register first admin |
@@ -308,6 +351,8 @@ curl http://localhost:8000/org/api-keys \
 | GET | /admin/dashboard | Admin | Orgs + upload counts |
 | GET | /admin/orgs | Admin | List orgs |
 | GET | /admin/orgs/{org_id} | Admin | Org detail + uploads |
+| GET | /admin/prompt | Admin | Get default RAG prompt |
+| PUT | /admin/orgs/{org_id}/prompt | Admin | Set org custom prompt |
 | GET | /org/dashboard | Org | Own org + uploads |
 | POST | /orgs | Admin | Create org |
 | GET | /orgs/{org_id} | Admin/Org | Get org |
