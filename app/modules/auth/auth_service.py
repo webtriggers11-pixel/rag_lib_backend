@@ -1,17 +1,16 @@
 import uuid
 from datetime import datetime, timedelta, timezone
 
-import psycopg2
+import asyncpg
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from psycopg2.extras import RealDictCursor
 
 from app.config import (
     JWT_ALGORITHM,
     JWT_EXPIRE_MINUTES,
     JWT_SECRET,
-    get_connection_string,
 )
+from app.db import get_pool
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -24,54 +23,41 @@ def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
 
 
-def create_user(email: str, password: str, role: str, org_id: str | None = None) -> dict:
-    conn = psycopg2.connect(get_connection_string())
-    try:
-        with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            user_id = str(uuid.uuid4())
-            cur.execute(
-                """INSERT INTO users (id, email, password_hash, role, org_id)
-                   VALUES (%s, %s, %s, %s, %s)
-                   RETURNING id, email, role, org_id, created_at""",
-                (user_id, email.lower().strip(), hash_password(password), role, org_id),
-            )
-            row = cur.fetchone()
-            conn.commit()
-            return _user_row_to_dict(row)
-    finally:
-        conn.close()
+async def create_user(email: str, password: str, role: str, org_id: str | None = None) -> dict:
+    pool = await get_pool()
+    user_id = str(uuid.uuid4())
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """INSERT INTO users (id, email, password_hash, role, org_id)
+               VALUES ($1, $2, $3, $4, $5)
+               RETURNING id, email, role, org_id, created_at""",
+            user_id, email.lower().strip(), hash_password(password), role, org_id,
+        )
+        return _user_row_to_dict(dict(row))
 
 
-def get_user_by_email(email: str) -> dict | None:
-    conn = psycopg2.connect(get_connection_string())
-    try:
-        with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute(
-                "SELECT id, email, password_hash, role, org_id, created_at FROM users WHERE email = %s",
-                (email.lower().strip(),),
-            )
-            row = cur.fetchone()
-            if not row:
-                return None
-            return _user_row_to_dict(row, include_hash=True)
-    finally:
-        conn.close()
+async def get_user_by_email(email: str) -> dict | None:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT id, email, password_hash, role, org_id, created_at FROM users WHERE email = $1",
+            email.lower().strip(),
+        )
+        if not row:
+            return None
+        return _user_row_to_dict(dict(row), include_hash=True)
 
 
-def get_user_by_id(user_id: str) -> dict | None:
-    conn = psycopg2.connect(get_connection_string())
-    try:
-        with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute(
-                "SELECT id, email, password_hash, role, org_id, created_at FROM users WHERE id = %s",
-                (user_id,),
-            )
-            row = cur.fetchone()
-            if not row:
-                return None
-            return _user_row_to_dict(row)
-    finally:
-        conn.close()
+async def get_user_by_id(user_id: str) -> dict | None:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT id, email, password_hash, role, org_id, created_at FROM users WHERE id = $1",
+            user_id,
+        )
+        if not row:
+            return None
+        return _user_row_to_dict(dict(row))
 
 
 def _user_row_to_dict(row: dict, include_hash: bool = False) -> dict:
@@ -102,11 +88,8 @@ def decode_token(token: str) -> dict | None:
         return None
 
 
-def count_users() -> int:
-    conn = psycopg2.connect(get_connection_string())
-    try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT COUNT(*) FROM users")
-            return cur.fetchone()[0]
-    finally:
-        conn.close()
+async def count_users() -> int:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow("SELECT COUNT(*) AS n FROM users")
+        return row["n"] if row else 0

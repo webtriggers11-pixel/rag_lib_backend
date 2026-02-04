@@ -42,31 +42,31 @@ class TokenResponse(BaseModel):
 
 
 @router.post("/register", response_model=TokenResponse)
-def register(req: RegisterRequest):
+async def register(req: RegisterRequest):
     """Register first user as admin. Only allowed when no users exist."""
-    if count_users() > 0:
+    if await count_users() > 0:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Registration closed. Only admin can register new orgs.",
         )
-    if get_user_by_email(req.email):
+    if await get_user_by_email(req.email):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
-    user = create_user(req.email, req.password, role="admin", org_id=None)
+    user = await create_user(req.email, req.password, role="admin", org_id=None)
     token = create_access_token({"sub": user["id"], "role": "admin"})
     logger.info("admin_registered email=%s", req.email, extra={"event": "admin_registered", "email": req.email})
     return TokenResponse(access_token=token, user=user)
 
 
 @router.post("/register-org", response_model=TokenResponse)
-def register_org(req: RegisterOrgRequest, current_user: dict = Depends(require_admin)):
+async def register_org(req: RegisterOrgRequest, current_user: dict = Depends(require_admin)):
     """Admin only: create org and register org user (email+password)."""
-    if get_user_by_email(req.email):
+    if await get_user_by_email(req.email):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
     try:
-        org = create_org(req.name.strip())
+        org = await create_org(req.name.strip())
     except DuplicateOrgNameError:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Organization name already exists")
-    user = create_user(req.email, req.password, role="org", org_id=org["id"])
+    user = await create_user(req.email, req.password, role="org", org_id=org["id"])
     token = create_access_token({"sub": user["id"], "role": "org", "org_id": org["id"]})
     logger.info(
         "org_registered org_id=%s email=%s",
@@ -77,15 +77,15 @@ def register_org(req: RegisterOrgRequest, current_user: dict = Depends(require_a
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(req: LoginRequest):
-    user = get_user_by_email(req.email)
+async def login(req: LoginRequest):
+    user = await get_user_by_email(req.email)
     if not user or not verify_password(req.password, user.get("password_hash", "")):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
-    u = get_user_by_id(user["id"])
+    u = await get_user_by_id(user["id"])
     token = create_access_token({"sub": user["id"], "role": user["role"], "org_id": user.get("org_id")})
     return TokenResponse(access_token=token, user=u)
 
 
 @router.get("/me", response_model=dict)
-def me(current_user: dict = Depends(get_current_user)):
+async def me(current_user: dict = Depends(get_current_user)):
     return {k: v for k, v in current_user.items() if k != "password_hash"}

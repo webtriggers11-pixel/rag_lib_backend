@@ -6,7 +6,7 @@ from app.modules.auth.auth_service import decode_token, get_user_by_id
 security = HTTPBearer(auto_error=False)
 
 
-def get_current_user(
+async def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(security),
 ) -> dict:
     if not credentials or not credentials.credentials:
@@ -22,7 +22,7 @@ def get_current_user(
             detail="Invalid or expired token",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    user = get_user_by_id(payload["sub"])
+    user = await get_user_by_id(payload["sub"])
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -32,13 +32,13 @@ def get_current_user(
     return user
 
 
-def require_admin(current_user: dict = Depends(get_current_user)) -> dict:
+async def require_admin(current_user: dict = Depends(get_current_user)) -> dict:
     if current_user.get("role") != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin only")
     return current_user
 
 
-def require_org_or_admin(org_id: str, current_user: dict = Depends(get_current_user)) -> dict:
+async def require_org_or_admin(org_id: str, current_user: dict = Depends(get_current_user)) -> dict:
     if current_user.get("role") == "admin":
         return current_user
     if current_user.get("org_id") != org_id:

@@ -31,12 +31,12 @@ class CreateOrgRequest(BaseModel):
 
 
 @router.post("", response_model=dict)
-def create_org_route(req: CreateOrgRequest, current_user: dict = Depends(require_admin)):
+async def create_org_route(req: CreateOrgRequest, current_user: dict = Depends(require_admin)):
     name = req.name.strip()
     if not name:
         raise HTTPException(status_code=400, detail="name is required")
     try:
-        org = create_org(name)
+        org = await create_org(name)
         logger.info(
             "org_created id=%s name=%s",
             org["id"], name,
@@ -58,10 +58,10 @@ def create_org_route(req: CreateOrgRequest, current_user: dict = Depends(require
 
 
 @router.get("/{org_id}", response_model=dict)
-def get_org_route(org_id: str, current_user: dict = Depends(get_current_user)):
+async def get_org_route(org_id: str, current_user: dict = Depends(get_current_user)):
     _validate_org_id(org_id)
     _require_org_access(org_id, current_user)
-    org = get_org(org_id)
+    org = await get_org(org_id)
     if org is None:
         raise HTTPException(status_code=404, detail="Org not found")
     return org

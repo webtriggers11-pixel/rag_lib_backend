@@ -1,9 +1,10 @@
+import asyncio
 import logging
 import os
 import sys
 import time
 
-import psycopg2
+import asyncpg
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -20,6 +21,7 @@ from app.config import (
     LOG_MAX_BYTES,
     get_connection_string,
 )
+from app.db import close_pool, get_pool
 from app.logging_handlers import DBLogHandler
 from app.modules.admin import admin_router
 from app.modules.auth import auth_router
@@ -108,88 +110,111 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
-@app.on_event("startup")
-def ensure_db():
+_db_init_done = False
+_db_init_lock = asyncio.Lock()
+
+
+async def _ensure_db_async():
     if not DEBUG and (not JWT_SECRET or JWT_SECRET == "change-me-in-production"):
         raise RuntimeError(
             "JWT_SECRET must be set to a secure random value in production (DEBUG=0). "
             "Use e.g. openssl rand -hex 32 and set JWT_SECRET in .env."
         )
+    conn = await asyncpg.connect(get_connection_string())
     try:
-        conn = psycopg2.connect(get_connection_string())
-        conn.autocommit = True
-        with conn.cursor() as cur:
-            try:
-                cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
-            except psycopg2.errors.FeatureNotSupported as e:
-                if "vector" in str(e).lower():
-                    logger.warning(
-                        "pgvector extension not available; RAG upload/query will fail. "
-                        "On Railway use 'Postgres with pgVector Engine'."
-                    )
-                else:
-                    raise
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS orgs (
-                    id UUID PRIMARY KEY,
-                    name TEXT NOT NULL UNIQUE,
-                    created_at TIMESTAMPTZ DEFAULT now()
-                );
-            """)
-            cur.execute("ALTER TABLE orgs ADD COLUMN IF NOT EXISTS custom_prompt TEXT")
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS prompts (
-                    key TEXT PRIMARY KEY,
-                    content TEXT NOT NULL,
-                    updated_at TIMESTAMPTZ DEFAULT now()
-                );
-            """)
-            cur.execute(
-                "INSERT INTO prompts (key, content) VALUES (%s, %s) ON CONFLICT (key) DO NOTHING",
-                (RAG_PROMPT_KEY, DEFAULT_RAG_PROMPT),
-            )
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS audit_logs (
-                    id BIGSERIAL PRIMARY KEY,
-                    created_at TIMESTAMPTZ DEFAULT now(),
-                    level VARCHAR(20) NOT NULL,
-                    logger VARCHAR(255) NOT NULL,
-                    message TEXT NOT NULL,
-                    extra JSONB
-                );
-            """)
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS users (
-                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                    email VARCHAR(255) UNIQUE NOT NULL,
-                    password_hash VARCHAR(255) NOT NULL,
-                    role VARCHAR(20) NOT NULL CHECK (role IN ('admin', 'org')),
-                    org_id UUID REFERENCES orgs(id),
-                    created_at TIMESTAMPTZ DEFAULT now()
-                );
-            """)
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS uploads (
-                    id BIGSERIAL PRIMARY KEY,
-                    org_id UUID NOT NULL REFERENCES orgs(id),
-                    filename VARCHAR(500) NOT NULL,
-                    created_at TIMESTAMPTZ DEFAULT now()
-                );
-            """)
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS org_api_keys (
-                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                    org_id UUID NOT NULL REFERENCES orgs(id),
-                    key_hash TEXT NOT NULL UNIQUE,
-                    key_prefix TEXT NOT NULL,
-                    created_at TIMESTAMPTZ DEFAULT now()
-                );
-            """)
-        conn.close()
+        try:
+            await conn.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+        except Exception as e:
+            if "vector" in str(e).lower() or "extension" in str(e).lower():
+                logger.warning(
+                    "pgvector extension not available; RAG upload/query will fail. "
+                    "On Railway use 'Postgres with pgVector Engine'."
+                )
+            else:
+                raise
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS orgs (
+                id UUID PRIMARY KEY,
+                name TEXT NOT NULL UNIQUE,
+                created_at TIMESTAMPTZ DEFAULT now()
+            );
+        """)
+        await conn.execute("ALTER TABLE orgs ADD COLUMN IF NOT EXISTS custom_prompt TEXT")
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS prompts (
+                key TEXT PRIMARY KEY,
+                content TEXT NOT NULL,
+                updated_at TIMESTAMPTZ DEFAULT now()
+            );
+        """)
+        await conn.execute(
+            "INSERT INTO prompts (key, content) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING",
+            RAG_PROMPT_KEY, DEFAULT_RAG_PROMPT,
+        )
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS audit_logs (
+                id BIGSERIAL PRIMARY KEY,
+                created_at TIMESTAMPTZ DEFAULT now(),
+                level VARCHAR(20) NOT NULL,
+                logger VARCHAR(255) NOT NULL,
+                message TEXT NOT NULL,
+                extra JSONB
+            );
+        """)
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                email VARCHAR(255) UNIQUE NOT NULL,
+                password_hash VARCHAR(255) NOT NULL,
+                role VARCHAR(20) NOT NULL CHECK (role IN ('admin', 'org')),
+                org_id UUID REFERENCES orgs(id),
+                created_at TIMESTAMPTZ DEFAULT now()
+            );
+        """)
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS uploads (
+                id BIGSERIAL PRIMARY KEY,
+                org_id UUID NOT NULL REFERENCES orgs(id),
+                filename VARCHAR(500) NOT NULL,
+                created_at TIMESTAMPTZ DEFAULT now()
+            );
+        """)
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS org_api_keys (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                org_id UUID NOT NULL REFERENCES orgs(id),
+                key_hash TEXT NOT NULL UNIQUE,
+                key_prefix TEXT NOT NULL,
+                created_at TIMESTAMPTZ DEFAULT now()
+            );
+        """)
         logger.info("Database initialized")
     except Exception as e:
         logger.error("Database initialization failed: %s", e)
         raise
+    finally:
+        await conn.close()
+
+
+@app.on_event("startup")
+async def startup():
+    pass
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    await close_pool()
+
+
+@app.middleware("http")
+async def lazy_db_init(request: Request, call_next):
+    global _db_init_done
+    if not _db_init_done:
+        async with _db_init_lock:
+            if not _db_init_done:
+                await _ensure_db_async()
+                _db_init_done = True
+    return await call_next(request)
 
 
 @app.get("/")
@@ -203,8 +228,9 @@ async def root():
 async def health():
     db_ok = False
     try:
-        conn = psycopg2.connect(get_connection_string())
-        conn.close()
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            await conn.fetchval("SELECT 1")
         db_ok = True
     except Exception as e:
         logger.warning("Health check DB: %s", e)

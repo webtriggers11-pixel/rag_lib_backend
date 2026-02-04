@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import uuid
 
@@ -42,16 +43,16 @@ class UploadResponse(BaseModel):
     chunks_stored: int
 
 
-def _ensure_org(org_id: str) -> None:
+async def _ensure_org(org_id: str) -> None:
     _validate_org_id(org_id)
-    if get_org(org_id) is None:
+    if await get_org(org_id) is None:
         raise HTTPException(status_code=404, detail="Org not found")
 
 
 @router.post("/upload", response_model=UploadResponse)
 async def upload_pdf(org_id: str, file: UploadFile = File(...), current_user: dict = Depends(get_current_user)):
     _require_org_access(org_id, current_user)
-    _ensure_org(org_id)
+    await _ensure_org(org_id)
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="File must be a PDF")
     contents = await file.read()
@@ -64,8 +65,8 @@ async def upload_pdf(org_id: str, file: UploadFile = File(...), current_user: di
         )
     try:
         meta = {"filename": str(file.filename)} if file.filename else {}
-        count = ingest_pdf_into_store(contents, metadata=meta, org_id=org_id)
-        record_upload(org_id, file.filename or "document.pdf")
+        count = await asyncio.to_thread(ingest_pdf_into_store, contents, meta, org_id)
+        await record_upload(org_id, file.filename or "document.pdf")
         logger.info(
             "upload org_id=%s filename=%s chunks_stored=%d size_bytes=%d",
             org_id, file.filename, count, len(contents),
@@ -97,14 +98,16 @@ async def upload_pdf(org_id: str, file: UploadFile = File(...), current_user: di
 @router.post("/query", response_model=QueryResponse)
 async def ask_question(org_id: str, req: QueryRequest, current_user: dict = Depends(get_current_user)):
     _require_org_access(org_id, current_user)
-    _ensure_org(org_id)
+    await _ensure_org(org_id)
     question = req.question.strip()
     if not question:
         raise HTTPException(status_code=400, detail="Question cannot be empty")
     try:
-        answer = query_rag(
+        answer = await asyncio.to_thread(
+            query_rag,
             question,
-            filter_metadata={"org_id": org_id},
+            4,
+            {"org_id": org_id},
         )
         logger.info(
             "query org_id=%s question_len=%d",

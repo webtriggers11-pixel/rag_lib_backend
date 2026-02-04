@@ -6,6 +6,8 @@ from typing import List
 import psycopg2
 from langchain_core._api.deprecation import LangChainPendingDeprecationWarning
 
+from app.db import get_pool
+
 warnings.filterwarnings("ignore", category=LangChainPendingDeprecationWarning)
 from langchain_community.vectorstores import PGVector
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
@@ -58,7 +60,7 @@ logger = logging.getLogger("app")
 
 
 def get_rag_prompt() -> str:
-    """Load RAG prompt template from DB. Falls back to DEFAULT_RAG_PROMPT if missing or error."""
+    """Sync: load RAG prompt from DB (used inside sync query_rag)."""
     try:
         conn = psycopg2.connect(get_connection_string())
         try:
@@ -71,6 +73,19 @@ def get_rag_prompt() -> str:
             conn.close()
     except Exception as e:
         logger.debug("get_rag_prompt fallback: %s", e)
+    return DEFAULT_RAG_PROMPT
+
+
+async def get_rag_prompt_async() -> str:
+    """Async: load RAG prompt template from DB. Falls back to DEFAULT_RAG_PROMPT if missing or error."""
+    try:
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow("SELECT content FROM prompts WHERE key = $1", RAG_PROMPT_KEY)
+            if row and row["content"] and "{context}" in row["content"] and "{question}" in row["content"]:
+                return row["content"]
+    except Exception as e:
+        logger.debug("get_rag_prompt_async fallback: %s", e)
     return DEFAULT_RAG_PROMPT
 
 

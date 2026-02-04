@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Run DB migration (create tables) and seed admin. Set DATABASE_URL and POSTGRES_HOST/POSTGRES_PORT as needed. Run from project root: python scripts/migrate_and_seed.py"""
 
+import asyncio
 import os
 import sys
 
@@ -86,4 +87,4 @@ def migrate():
 
 if __name__ == "__main__":
     migrate()
-    seed_admin()
+    asyncio.run(seed_admin())

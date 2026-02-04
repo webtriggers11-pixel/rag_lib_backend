@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -20,20 +21,20 @@ class QueryResponse(BaseModel):
     answer: str
 
 
-def get_org_id_from_api_key(request: Request) -> str:
+async def get_org_id_from_api_key(request: Request) -> str:
     api_key = request.headers.get("X-API-Key") or request.headers.get("x-api-key")
     if not api_key or not api_key.strip():
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing or invalid X-API-Key header",
         )
-    org_id = get_org_id_by_key(api_key.strip())
+    org_id = await get_org_id_by_key(api_key.strip())
     if not org_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid API key",
         )
-    if get_org(org_id) is None:
+    if await get_org(org_id) is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Org not found")
     return org_id
 
@@ -47,9 +48,11 @@ async def query_with_api_key(
     if not question:
         raise HTTPException(status_code=400, detail="Question cannot be empty")
     try:
-        answer = query_rag(
+        answer = await asyncio.to_thread(
+            query_rag,
             question,
-            filter_metadata={"org_id": org_id},
+            4,
+            {"org_id": org_id},
         )
         logger.info(
             "query api_key org_id=%s question_len=%d",
