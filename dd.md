@@ -38,3 +38,5 @@ curl -X POST http://localhost:8000/orgs/ORG_ID/rag/query -H "Content-Type: appli
 
 
   npm install github:YOUR_USERNAME/YOUR_REPO
+
+   b 
