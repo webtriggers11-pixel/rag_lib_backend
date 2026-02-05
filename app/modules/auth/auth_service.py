@@ -76,7 +76,7 @@ def _user_row_to_dict(row: dict, include_hash: bool = False) -> dict:
 def create_access_token(data: dict) -> str:
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(minutes=JWT_EXPIRE_MINUTES)
-    to_encode["exp"] = expire
+    to_encode["exp"] = int(expire.timestamp())
     return jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
