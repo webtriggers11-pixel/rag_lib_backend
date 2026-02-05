@@ -105,6 +105,14 @@ async def log_requests(request: Request, call_next):
     return response
 
 
+def _cors_headers() -> dict:
+    return {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": "*",
+    }
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.exception(
@@ -115,6 +123,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
         status_code=500,
         content={"detail": str(exc) if DEBUG else "Internal server error"},
+        headers=_cors_headers(),
     )
 
 
@@ -124,6 +133,7 @@ async def _exception_group_handler(request: Request, exc: BaseException):
     return JSONResponse(
         status_code=500,
         content={"detail": "Internal server error"},
+        headers=_cors_headers(),
     )
 
 

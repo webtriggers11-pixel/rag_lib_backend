@@ -79,9 +79,14 @@ async def register_org(req: RegisterOrgRequest, current_user: dict = Depends(req
 @router.post("/login", response_model=TokenResponse)
 async def login(req: LoginRequest):
     user = await get_user_by_email(req.email)
-    if not user or not verify_password(req.password, user.get("password_hash", "")):
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+    password_hash = user.get("password_hash") or ""
+    if not verify_password(req.password, password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
     u = await get_user_by_id(user["id"])
+    if u is None:
+        u = {k: v for k, v in user.items() if k != "password_hash"}
     token = create_access_token({"sub": user["id"], "role": user["role"], "org_id": user.get("org_id")})
     return TokenResponse(access_token=token, user=u)
 
