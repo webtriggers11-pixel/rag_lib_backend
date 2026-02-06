@@ -91,7 +91,7 @@ async def get_rag_prompt_async() -> str:
 
 def get_embeddings():
     return GoogleGenerativeAIEmbeddings(
-        model="models/embedding-001",
+        model="gemini-embedding-001",
         google_api_key=GOOGLE_API_KEY,
     )
 
