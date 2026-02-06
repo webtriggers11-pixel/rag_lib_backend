@@ -5,7 +5,7 @@ import uuid
 from app.db import get_pool
 
 
-MAX_API_KEYS_PER_ORG = 3
+MAX_API_KEYS_PER_ORG = 1
 
 
 class ApiKeyLimitError(Exception):
@@ -16,6 +16,12 @@ def _hash_key(plain: str) -> str:
     return hashlib.sha256(plain.encode("utf-8")).hexdigest()
 
 
+async def revoke_all_api_keys(org_id: str) -> None:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM org_api_keys WHERE org_id = $1", org_id)
+
+
 async def count_api_keys(org_id: str) -> int:
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -24,8 +30,7 @@ async def count_api_keys(org_id: str) -> int:
 
 
 async def create_api_key(org_id: str) -> tuple[str, str, str]:
-    if await count_api_keys(org_id) >= MAX_API_KEYS_PER_ORG:
-        raise ApiKeyLimitError(f"Maximum {MAX_API_KEYS_PER_ORG} API keys per org. Delete one to create another.")
+    await revoke_all_api_keys(org_id)
     plain = "rag_" + secrets.token_urlsafe(32)
     key_hash = _hash_key(plain)
     prefix = plain[:12] + "..."

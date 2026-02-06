@@ -169,6 +169,9 @@ async def _ensure_db_async():
             );
         """)
         await conn.execute("ALTER TABLE orgs ADD COLUMN IF NOT EXISTS custom_prompt TEXT")
+        await conn.execute("ALTER TABLE orgs ADD COLUMN IF NOT EXISTS max_pdfs INTEGER")
+        await conn.execute("ALTER TABLE orgs ADD COLUMN IF NOT EXISTS max_chars INTEGER")
+        await conn.execute("ALTER TABLE orgs ADD COLUMN IF NOT EXISTS upload_enabled BOOLEAN")
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS prompts (
                 key TEXT PRIMARY KEY,

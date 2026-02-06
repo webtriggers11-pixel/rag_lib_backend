@@ -3,7 +3,7 @@ from pydantic import BaseModel
 
 from app.db import get_pool
 from app.modules.auth.dependencies import require_admin
-from app.modules.orgs.orgs_service import get_org, list_orgs, set_org_prompt
+from app.modules.orgs.orgs_service import get_org, list_orgs, set_org_limits, set_org_prompt
 from app.services.api_keys_service import ApiKeyLimitError, create_api_key, list_api_keys
 from app.services.rag import get_rag_prompt_async
 from app.services.uploads_service import count_uploads_by_org, list_uploads
@@ -13,6 +13,12 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 
 class SetOrgPromptRequest(BaseModel):
     content: str | None = None
+
+
+class SetOrgLimitsRequest(BaseModel):
+    max_pdfs: int | None = None
+    max_chars: int | None = None
+    upload_enabled: bool | None = None
 
 
 @router.get("/dashboard")
@@ -58,9 +64,19 @@ async def admin_set_org_prompt(org_id: str, req: SetOrgPromptRequest, current_us
     return {"ok": True}
 
 
+@router.put("/orgs/{org_id}/limits")
+async def admin_set_org_limits(org_id: str, req: SetOrgLimitsRequest, current_user: dict = Depends(require_admin)):
+    """Admin: set org upload limits (max_pdfs, max_chars, upload_enabled)."""
+    org = await get_org(org_id)
+    if not org:
+        raise HTTPException(status_code=404, detail="Org not found")
+    await set_org_limits(org_id, max_pdfs=req.max_pdfs, max_chars=req.max_chars, upload_enabled=req.upload_enabled)
+    return {"ok": True}
+
+
 @router.post("/orgs/{org_id}/api-keys")
 async def admin_create_api_key(org_id: str, current_user: dict = Depends(require_admin)):
-    """Admin: create API key for org. Returns plain key once; store it securely. Max 3 per org."""
+    """Admin: create API key for org. Returns plain key once; store it securely. Only one key active; creating a new one revokes the old."""
     org = await get_org(org_id)
     if not org:
         raise HTTPException(status_code=404, detail="Org not found")

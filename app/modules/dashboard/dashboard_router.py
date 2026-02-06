@@ -25,7 +25,7 @@ async def org_dashboard(current_user: dict = Depends(get_current_user)):
 
 @router.post("/api-keys")
 async def org_create_api_key(current_user: dict = Depends(get_current_user)):
-    """Org user: create API key for own org. Returns plain key once. Max 3 per org."""
+    """Org user: create API key for own org. Returns plain key once. Only one key active; creating a new one revokes the old."""
     if current_user.get("role") != "org":
         raise HTTPException(status_code=403, detail="Org users only")
     org_id = current_user.get("org_id")

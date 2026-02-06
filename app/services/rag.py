@@ -170,10 +170,13 @@ def ingest_pdf_into_store(
     pdf_bytes: bytes,
     metadata: dict | None = None,
     org_id: str | None = None,
+    max_chars: int | None = None,
 ) -> int:
     text = extract_text_from_pdf(pdf_bytes)
     if not text or not text.strip():
         raise ValueError(NO_TEXT_ERROR_MSG)
+    if max_chars is not None and len(text) > max_chars:
+        raise ValueError(f"Extracted text exceeds maximum character limit ({max_chars}). Document has {len(text)} characters.")
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=CHUNK_SIZE,
         chunk_overlap=CHUNK_OVERLAP,

@@ -9,7 +9,7 @@ from app.config import DEBUG, MAX_UPLOAD_SIZE_MB, QUESTION_MAX_LENGTH
 from app.modules.auth.dependencies import get_current_user
 from app.modules.orgs.orgs_service import get_org
 from app.services.rag import ingest_pdf_into_store, query_rag
-from app.services.uploads_service import record_upload
+from app.services.uploads_service import count_uploads_by_org, record_upload
 
 logger = logging.getLogger("app")
 router = APIRouter(prefix="/orgs/{org_id}/rag", tags=["rag"])
@@ -52,7 +52,18 @@ async def _ensure_org(org_id: str) -> None:
 @router.post("/upload", response_model=UploadResponse)
 async def upload_pdf(org_id: str, file: UploadFile = File(...), current_user: dict = Depends(get_current_user)):
     _require_org_access(org_id, current_user)
-    await _ensure_org(org_id)
+    _validate_org_id(org_id)
+    org = await get_org(org_id)
+    if org is None:
+        raise HTTPException(status_code=404, detail="Org not found")
+    if not org.get("upload_enabled", True):
+        raise HTTPException(status_code=403, detail="Uploads are disabled for this organization")
+    upload_count = await count_uploads_by_org(org_id)
+    if upload_count >= org.get("max_pdfs", 100):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Maximum number of documents ({org.get('max_pdfs', 100)}) reached for this organization",
+        )
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="File must be a PDF")
     contents = await file.read()
@@ -63,9 +74,10 @@ async def upload_pdf(org_id: str, file: UploadFile = File(...), current_user: di
             status_code=413,
             detail=f"File too large. Maximum size is {MAX_UPLOAD_SIZE_MB} MB",
         )
+    max_chars = org.get("max_chars")
     try:
         meta = {"filename": str(file.filename)} if file.filename else {}
-        count = await asyncio.to_thread(ingest_pdf_into_store, contents, meta, org_id)
+        count = await asyncio.to_thread(ingest_pdf_into_store, contents, meta, org_id, max_chars)
         await record_upload(org_id, file.filename or "document.pdf")
         logger.info(
             "upload org_id=%s filename=%s chunks_stored=%d size_bytes=%d",

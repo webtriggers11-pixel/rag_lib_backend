@@ -20,6 +20,8 @@ POSTGRES_DB: str = os.getenv("POSTGRES_DB", "ragdb")
 MAX_UPLOAD_SIZE_MB: int = max(1, min(100, int(os.getenv("MAX_UPLOAD_SIZE_MB", "50"))))
 QUESTION_MAX_LENGTH: int = max(10, min(10000, int(os.getenv("QUESTION_MAX_LENGTH", "2000"))))
 ORG_NAME_MAX_LENGTH: int = max(1, min(500, int(os.getenv("ORG_NAME_MAX_LENGTH", "255"))))
+DEFAULT_ORG_MAX_PDFS: int = max(1, int(os.getenv("DEFAULT_ORG_MAX_PDFS", "100")))
+DEFAULT_ORG_MAX_CHARS: int = max(1000, int(os.getenv("DEFAULT_ORG_MAX_CHARS", "5000000")))
 CORS_ORIGINS: list[str] = [o.strip() for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip()]
 
 LOG_FILE: str = os.getenv("LOG_FILE", "").strip()
