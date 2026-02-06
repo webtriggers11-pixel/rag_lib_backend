@@ -2,7 +2,7 @@
 
 import asyncpg
 
-from app.config import get_connection_string
+from app.config import get_connection_string_async
 
 _pool: asyncpg.Pool | None = None
 
@@ -11,7 +11,7 @@ async def get_pool() -> asyncpg.Pool:
     global _pool
     if _pool is None:
         _pool = await asyncpg.create_pool(
-            get_connection_string(),
+            get_connection_string_async(),
             min_size=1,
             max_size=10,
             command_timeout=60,

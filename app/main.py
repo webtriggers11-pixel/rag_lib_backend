@@ -18,7 +18,7 @@ from app.config import (
     LOG_FILE,
     LOG_LEVEL,
     LOG_MAX_BYTES,
-    get_connection_string,
+    get_connection_string_async,
 )
 from app.db import close_pool, get_pool
 from app.logging_handlers import DBLogHandler
@@ -149,7 +149,7 @@ async def _ensure_db_async():
             "JWT_SECRET must be set to a secure random value in production (DEBUG=0). "
             "Use e.g. openssl rand -hex 32 and set JWT_SECRET in .env."
         )
-    conn = await asyncpg.connect(get_connection_string(), timeout=25)
+    conn = await asyncpg.connect(get_connection_string_async(), timeout=25)
     try:
         try:
             await conn.execute("CREATE EXTENSION IF NOT EXISTS vector;")

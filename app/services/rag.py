@@ -97,9 +97,12 @@ def get_embeddings():
 
 
 def get_vector_store():
+    conn_str = get_connection_string()
+    if conn_str.startswith("postgresql://"):
+        conn_str = "postgresql+psycopg2://" + conn_str[len("postgresql://"):]
     return PGVector(
         collection_name=COLLECTION_NAME,
-        connection_string=get_connection_string(),
+        connection_string=conn_str,
         embedding_function=get_embeddings(),
         use_jsonb=True,
     )

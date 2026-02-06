@@ -1,4 +1,5 @@
 import os
+import re
 from typing import Optional
 
 from dotenv import load_dotenv
@@ -45,6 +46,17 @@ def get_connection_string() -> str:
             if f"@{host}:/" in url:
                 url = url.replace(f"@{host}:/", f"@{host}:{port}/", 1)
         if "sslmode=" not in url and url.startswith("postgresql://"):
-            url = url + ("&" if "?" in url else "?") + "sslmode=prefer"
+            url = url + ("&" if "?" in url else "?") + "sslmode=require"
         return url
     return f"postgresql://postgres:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
+
+
+def get_connection_string_async() -> str:
+    """Connection string for asyncpg. Railway (rlwy.net) uses sslmode=disable to avoid 'rejected SSL upgrade'."""
+    url = get_connection_string()
+    if "rlwy.net" in url:
+        if "sslmode=" in url:
+            url = re.sub(r"[?&]sslmode=[^&]*", "", url)
+            url = url.rstrip("?&")
+        url = url + ("&" if "?" in url else "?") + "sslmode=disable"
+    return url
