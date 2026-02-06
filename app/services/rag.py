@@ -18,6 +18,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from pypdf import PdfReader
 
 from app.config import (
+    EMBEDDING_DIMENSION,
     GEMINI_MAX_TOKENS,
     GEMINI_MODEL,
     GEMINI_TEMPERATURE,
@@ -93,6 +94,7 @@ def get_embeddings():
     return GoogleGenerativeAIEmbeddings(
         model="gemini-embedding-001",
         google_api_key=GOOGLE_API_KEY,
+        output_dimensionality=EMBEDDING_DIMENSION,
     )
 
 

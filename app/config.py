@@ -10,6 +10,7 @@ GEMINI_TEMPERATURE: float = float(os.getenv("GEMINI_TEMPERATURE", "0.7"))
 max_tokens_env = os.getenv("GEMINI_MAX_TOKENS", "").strip()
 GEMINI_MAX_TOKENS: Optional[int] = int(max_tokens_env) if max_tokens_env else None
 GOOGLE_API_KEY: str = os.getenv("GOOGLE_API_KEY", "")
+EMBEDDING_DIMENSION: int = max(256, min(3072, int(os.getenv("EMBEDDING_DIMENSION", "3072"))))
 
 POSTGRES_HOST: str = (os.getenv("POSTGRES_HOST", "localhost") or "localhost").strip() or "localhost"
 POSTGRES_PORT: int = int(os.getenv("POSTGRES_PORT", "5432"))
