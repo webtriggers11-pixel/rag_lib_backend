@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from app.db import get_pool
 from app.modules.auth.dependencies import require_admin
 from app.modules.orgs.orgs_service import get_org, list_orgs, set_org_prompt
 from app.services.api_keys_service import ApiKeyLimitError, create_api_key, list_api_keys
@@ -77,3 +78,39 @@ async def admin_list_api_keys(org_id: str, current_user: dict = Depends(require_
     if not org:
         raise HTTPException(status_code=404, detail="Org not found")
     return {"api_keys": await list_api_keys(org_id)}
+
+
+@router.get("/vector")
+async def admin_vector_store(current_user: dict = Depends(require_admin)):
+    """Admin: pgvector store stats and recent embeddings (langchain_pg_embedding)."""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        try:
+            total = await conn.fetchval(
+                "SELECT COUNT(*) FROM langchain_pg_embedding"
+            )
+        except Exception:
+            total = 0
+        try:
+            rows = await conn.fetch(
+                """
+                SELECT id, LEFT(document, 500) AS document_preview, cmetadata
+                FROM langchain_pg_embedding
+                ORDER BY id
+                LIMIT 100
+                """
+            )
+        except Exception:
+            rows = []
+    return {
+        "collection_name": "rag_documents",
+        "total_embeddings": total,
+        "recent": [
+            {
+                "id": str(r["id"]),
+                "document_preview": r["document_preview"] or "",
+                "metadata": dict(r["cmetadata"]) if r["cmetadata"] else {},
+            }
+            for r in rows
+        ],
+    }
