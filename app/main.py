@@ -217,6 +217,19 @@ async def _ensure_db_async():
                 created_at TIMESTAMPTZ DEFAULT now()
             );
         """)
+        try:
+            exists = await conn.fetchval(
+                "SELECT to_regclass('public.langchain_pg_embedding') IS NOT NULL"
+            )
+            if exists:
+                await conn.execute("TRUNCATE langchain_pg_embedding CASCADE")
+                await conn.execute("TRUNCATE langchain_pg_collection CASCADE")
+                await conn.execute(
+                    "ALTER TABLE langchain_pg_embedding ALTER COLUMN embedding TYPE vector(768)"
+                )
+                logger.info("RAG embedding table aligned to 768 dimensions")
+        except Exception as e:
+            logger.debug("RAG embedding dimension migration skipped: %s", e)
         logger.info("Database initialized")
     except Exception as e:
         logger.error("Database initialization failed: %s", e)
